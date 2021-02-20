@@ -7,16 +7,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HelperUtils {
 
-    public static Banknote findElementWithValue(Map<Banknote, Integer> map, Integer value) {
-        Banknote minMax = null;
+    public static Banknote findHeavierNote(Map<Banknote, Integer> map, Integer value) {
+        Banknote searchedNote = null;
         BigDecimal valueOfMinMax = new BigDecimal(Integer.MIN_VALUE);
         for (Map.Entry<Banknote, Integer> entry : map.entrySet()) {
             if (entry.getValue().equals(value) && valueOfMinMax.compareTo(entry.getKey().getValue()) < 0) {
-                minMax = entry.getKey();
+                searchedNote = entry.getKey();
                 valueOfMinMax = entry.getKey().getValue();
             }
         }
-        return minMax;
+        return searchedNote;
     }
 
     public static double calculateStandardDeviation(HashMap<Banknote, Integer> notes) {

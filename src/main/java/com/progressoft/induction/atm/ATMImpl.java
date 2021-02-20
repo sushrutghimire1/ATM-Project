@@ -12,9 +12,9 @@ public class ATMImpl implements ATM {
 
     private final BankingSystem bankingSystem = new BankingSystemImpl();
     private final Map<Banknote, Integer> availableMoneyMap;
-    public static final ArrayList<Banknote> lastTransaction = new ArrayList<>();
-    private static final HashMap<Banknote, Integer> efficientMap = new HashMap<>();
-    private static double currentStandardDeviation = Double.MAX_VALUE;
+    private static final ArrayList<Banknote> lastTransaction = new ArrayList<>();
+    private static final HashMap<Banknote, Integer> withdrawalMoneyMap = new HashMap<>();
+    private static double leastStandardDeviation = Double.MAX_VALUE;
 
     ATMImpl() {
         Map<Banknote, Integer> availableMoney = new HashMap<>();
@@ -27,14 +27,46 @@ public class ATMImpl implements ATM {
 
     @Override
     public List<Banknote> withdraw(String accountNumber, BigDecimal amount) {
-        BigDecimal accountBalance = bankingSystem.getAccountBalance(accountNumber);
-        if (amount.compareTo(accountBalance) > 0)
+        if (amount.compareTo(bankingSystem.getAccountBalance(accountNumber)) > 0)
             throw new InsufficientFundsException();
         if (amount.compareTo(getTotalMoneyInATM()) > 0)
             throw new NotEnoughMoneyInATMException();
+        checkAmountValidity(amount);
         bankingSystem.debitAccount(accountNumber, amount);
-        withdrawAmount(amount);
+        withdrawAmountFromATM(amount);
         return lastTransaction;
+    }
+
+    private void checkAmountValidity(BigDecimal amount) {
+        if (amount.compareTo(new BigDecimal(0)) <= 0) {
+            throw new InputMismatchException();
+        }
+        if (amount.intValue() % Banknote.values()[0].getValue().intValue() != 0) {
+            throw new InputMismatchException();
+        }
+    }
+
+    public void withdrawAmountFromATM(BigDecimal amount) {
+        regularDecrementFromATM(amount);
+        diversifyLastTransaction(prepareWithdrawalMoneyMap());
+        withdrawalMoneyMap.putAll(prepareWithdrawalMoneyMap());
+        lastTransaction.clear();
+        withdrawalMoneyMap.forEach((key, value) -> {
+            for (int i = 0; i < value; i++) {
+                lastTransaction.add(key);
+                availableMoneyMap.put(key, availableMoneyMap.get(key) - 1);
+            }
+        });
+    }
+
+    public BigDecimal getTotalMoneyInATM() {
+        AtomicInteger totalMoney = new AtomicInteger(0);
+        this.availableMoneyMap.forEach((bankNote, times) ->
+                totalMoney.addAndGet(
+                        Banknote.valueOf(bankNote.toString()).getValue().multiply(new BigDecimal(times)).intValue()
+                )
+        );
+        return new BigDecimal(totalMoney.get());
     }
 
     private boolean isPresentInATM(HashMap<Banknote, Integer> counterMap) {
@@ -46,38 +78,7 @@ public class ATMImpl implements ATM {
         return isPresent.get();
     }
 
-    private void diversifyTransaction(HashMap<Banknote, Integer> counterMap) {
-        for (int i = Banknote.values().length - 1; i >= 0; i--)
-            if (counterMap.containsKey(Banknote.values()[i]))
-                if (counterMap.get(Banknote.values()[i]) != 0) break;
-                else counterMap.remove(Banknote.values()[i]);
-        Banknote maxBankNote = HelperUtils.findElementWithValue(counterMap, Collections.max(counterMap.values()));
-        Banknote minBankNote = HelperUtils.findElementWithValue(counterMap, Collections.min(counterMap.values()));
-        int numberOfMinReq = maxBankNote.getValue().intValue() / minBankNote.getValue().intValue();
-        int remainingCount = maxBankNote.getValue().intValue() % minBankNote.getValue().intValue();
-        if (numberOfMinReq <= 1) {
-            return;
-        }
-        counterMap.put(maxBankNote, counterMap.get(maxBankNote) - 1);
-        counterMap.put(minBankNote, counterMap.get(minBankNote) + numberOfMinReq);
-        if (remainingCount != 0) {
-            for (int i = Banknote.values().length - 1; i >= 0; i--) {
-                if (Banknote.values()[i].getValue().intValue() == remainingCount) {
-                    counterMap.put(Banknote.values()[i], counterMap.get(Banknote.values()[i]) + 1);
-                }
-            }
-        }
-
-        if (currentStandardDeviation > HelperUtils.calculateStandardDeviation(counterMap) && isPresentInATM(counterMap)) {
-            currentStandardDeviation = HelperUtils.calculateStandardDeviation(counterMap);
-            efficientMap.clear();
-            efficientMap.putAll(counterMap);
-        }
-        diversifyTransaction(counterMap);
-    }
-
-
-    private void regularDecrement(BigDecimal givenAmount) {
+    private void regularDecrementFromATM(BigDecimal givenAmount) {
         lastTransaction.clear();
         while (givenAmount.compareTo(new BigDecimal("0.0")) > 0) {
             for (int i = Banknote.values().length - 1; i >= 0; i--) {
@@ -87,49 +88,62 @@ public class ATMImpl implements ATM {
                 int numberOfNotesToDecrement = givenAmount.intValue() / banknote.getValue().intValue();
                 if (numberOfNotesToDecrement > 0) {
                     if (availableMoneyMap.get(banknote) > numberOfNotesToDecrement) {
-                        givenAmount = givenAmount.subtract(banknote.getValue().multiply(new BigDecimal(numberOfNotesToDecrement)));
+                        givenAmount = givenAmount.subtract(
+                                banknote.getValue().multiply(new BigDecimal(numberOfNotesToDecrement))
+                        );
                         for (int j = 0; j < numberOfNotesToDecrement; j++)
                             lastTransaction.add(banknote);
                     } else {
-                        givenAmount = givenAmount.subtract(banknote.getValue().multiply(new BigDecimal(availableMoneyMap.get(banknote))));
+                        givenAmount = givenAmount.subtract(
+                                banknote.getValue().multiply(new BigDecimal(availableMoneyMap.get(banknote)))
+                        );
                         for (int j = 0; j < availableMoneyMap.get(banknote); j++)
                             lastTransaction.add(banknote);
                     }
                 }
-
             }
         }
     }
 
-    public void withdrawAmount(BigDecimal amount) {
-        regularDecrement(amount);
-        diversifyTransaction(prepareCounterMap());
-        efficientMap.putAll(prepareCounterMap());
-        lastTransaction.clear();
-        efficientMap.forEach((key, value) -> {
-            for (int i = 0; i < value; i++) {
-                lastTransaction.add(key);
-                availableMoneyMap.put(key, availableMoneyMap.get(key) - 1);
-            }
-        });
-    }
-
-    private static HashMap<Banknote, Integer> prepareCounterMap() {
-        HashMap<Banknote, Integer> counterMap = new HashMap<>();
-        for (int i = Banknote.values().length - 1; i >= 0; i--) {
-            counterMap.put(Banknote.values()[i], 0);
-        }
-        lastTransaction.forEach(transaction -> counterMap.replace(transaction, counterMap.get(transaction) + 1));
-        return counterMap;
-    }
-
-    public BigDecimal getTotalMoneyInATM() {
-        AtomicInteger totalMoney = new AtomicInteger(0);
-        this.availableMoneyMap.forEach((bankNote, times) ->
-            totalMoney.addAndGet(
-                    Banknote.valueOf(bankNote.toString()).getValue().multiply(new BigDecimal(times)).intValue()
-            )
+    private void diversifyLastTransaction(HashMap<Banknote, Integer> atmNotesCounterMap) {
+        for (int i = Banknote.values().length - 1; i >= 0; i--)
+            if (atmNotesCounterMap.containsKey(Banknote.values()[i]))
+                if (atmNotesCounterMap.get(Banknote.values()[i]) != 0) break;
+                else atmNotesCounterMap.remove(Banknote.values()[i]);
+        Banknote maxBankNote = HelperUtils.findHeavierNote(
+                atmNotesCounterMap, Collections.max(atmNotesCounterMap.values())
         );
-        return new BigDecimal(totalMoney.get());
+        Banknote minBankNote = HelperUtils.findHeavierNote(
+                atmNotesCounterMap, Collections.min(atmNotesCounterMap.values())
+        );
+        int numberOfMinReq = maxBankNote.getValue().intValue() / minBankNote.getValue().intValue();
+        int remainingCount = maxBankNote.getValue().intValue() % minBankNote.getValue().intValue();
+        if (numberOfMinReq <= 1)
+            return;
+        atmNotesCounterMap.put(maxBankNote, atmNotesCounterMap.get(maxBankNote) - 1);
+        atmNotesCounterMap.put(minBankNote, atmNotesCounterMap.get(minBankNote) + numberOfMinReq);
+        if (remainingCount != 0)
+            for (int i = Banknote.values().length - 1; i >= 0; i--)
+                if (Banknote.values()[i].getValue().intValue() == remainingCount)
+                    atmNotesCounterMap.put(Banknote.values()[i], atmNotesCounterMap.get(Banknote.values()[i]) + 1);
+
+        if (leastStandardDeviation > HelperUtils.calculateStandardDeviation(atmNotesCounterMap)
+                && isPresentInATM(atmNotesCounterMap)) {
+            leastStandardDeviation = HelperUtils.calculateStandardDeviation(atmNotesCounterMap);
+            withdrawalMoneyMap.clear();
+            withdrawalMoneyMap.putAll(atmNotesCounterMap);
+        }
+        diversifyLastTransaction(atmNotesCounterMap);
+    }
+
+    private static HashMap<Banknote, Integer> prepareWithdrawalMoneyMap() {
+        HashMap<Banknote, Integer> withdrawalMoneyMap = new HashMap<>();
+        for (int i = Banknote.values().length - 1; i >= 0; i--) {
+            withdrawalMoneyMap.put(Banknote.values()[i], 0);
+        }
+        lastTransaction.forEach(transaction ->
+                withdrawalMoneyMap.replace(transaction, withdrawalMoneyMap.get(transaction) + 1)
+        );
+        return withdrawalMoneyMap;
     }
 }
