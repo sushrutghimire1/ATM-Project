@@ -48,8 +48,7 @@ public class ATMImpl implements ATM {
 
     public void withdrawAmountFromATM(BigDecimal amount) {
         regularDecrementFromATM(amount);
-        diversifyLastTransaction(prepareWithdrawalMoneyMap());
-        withdrawalMoneyMap.putAll(prepareWithdrawalMoneyMap());
+        diversifyLastTransaction(new HashMap<>(withdrawalMoneyMap));
         lastTransaction.clear();
         withdrawalMoneyMap.forEach((key, value) -> {
             for (int i = 0; i < value; i++) {
@@ -79,7 +78,6 @@ public class ATMImpl implements ATM {
     }
 
     private void regularDecrementFromATM(BigDecimal givenAmount) {
-        lastTransaction.clear();
         while (givenAmount.compareTo(new BigDecimal("0.0")) > 0) {
             for (int i = Banknote.values().length - 1; i >= 0; i--) {
                 if (givenAmount.compareTo(new BigDecimal("0.0")) <= 0)
@@ -91,14 +89,12 @@ public class ATMImpl implements ATM {
                         givenAmount = givenAmount.subtract(
                                 banknote.getValue().multiply(new BigDecimal(numberOfNotesToDecrement))
                         );
-                        for (int j = 0; j < numberOfNotesToDecrement; j++)
-                            lastTransaction.add(banknote);
+                        withdrawalMoneyMap.put(banknote, numberOfNotesToDecrement);
                     } else {
                         givenAmount = givenAmount.subtract(
                                 banknote.getValue().multiply(new BigDecimal(availableMoneyMap.get(banknote)))
                         );
-                        for (int j = 0; j < availableMoneyMap.get(banknote); j++)
-                            lastTransaction.add(banknote);
+                        withdrawalMoneyMap.put(banknote, availableMoneyMap.get(banknote));
                     }
                 }
             }
@@ -136,14 +132,4 @@ public class ATMImpl implements ATM {
         diversifyLastTransaction(atmNotesCounterMap);
     }
 
-    private HashMap<Banknote, Integer> prepareWithdrawalMoneyMap() {
-        HashMap<Banknote, Integer> withdrawalMoneyMap = new HashMap<>();
-        for (int i = Banknote.values().length - 1; i >= 0; i--) {
-            withdrawalMoneyMap.put(Banknote.values()[i], 0);
-        }
-        lastTransaction.forEach(transaction ->
-                withdrawalMoneyMap.replace(transaction, withdrawalMoneyMap.get(transaction) + 1)
-        );
-        return withdrawalMoneyMap;
-    }
 }
