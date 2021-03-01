@@ -12,9 +12,9 @@ public class ATMImpl implements ATM {
 
     private final BankingSystem bankingSystem = new BankingSystemImpl();
     private final Map<Banknote, Integer> availableMoneyMap;
-    private static final ArrayList<Banknote> lastTransaction = new ArrayList<>();
-    private static final HashMap<Banknote, Integer> withdrawalMoneyMap = new HashMap<>();
-    private static double leastStandardDeviation = Double.MAX_VALUE;
+    private final ArrayList<Banknote> lastTransaction = new ArrayList<>();
+    private final HashMap<Banknote, Integer> withdrawalMoneyMap = new HashMap<>();
+    private double leastStandardDeviation = Double.MAX_VALUE;
 
     ATMImpl() {
         Map<Banknote, Integer> availableMoney = new HashMap<>();
@@ -136,7 +136,7 @@ public class ATMImpl implements ATM {
         diversifyLastTransaction(atmNotesCounterMap);
     }
 
-    private static HashMap<Banknote, Integer> prepareWithdrawalMoneyMap() {
+    private HashMap<Banknote, Integer> prepareWithdrawalMoneyMap() {
         HashMap<Banknote, Integer> withdrawalMoneyMap = new HashMap<>();
         for (int i = Banknote.values().length - 1; i >= 0; i--) {
             withdrawalMoneyMap.put(Banknote.values()[i], 0);
